@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>JustBrain-Exploit-V1.8 - Powerful Exploit Tool</title>
+  <title> Powerful_Exploit_Tool</title>
   <style>
     body {
       background-color: #111;
@@ -63,7 +63,7 @@
 </head>
 <body>
 
-<h2><span class="emoji">📁</span> JustBrain-Exploit-V1.8 - Powerful Exploit Tool-<span class="emoji">🛒</span>
+<h2><span class="emoji">📁</span>  Powerful_Exploit_Tool-<span class="emoji">🛒</span>
   <span class="php-version">PHP v<?= phpversion(); ?></span>
 </h2>
 
